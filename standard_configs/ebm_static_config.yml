@@ -1,0 +1,63 @@
+active_config: iwslt17_en_de_mbart50_config
+model: mbart # choices: ("mbart", "nllb", "nambart", "cmlm", "mt5", "bart")
+function: semisupervised_train_ebm # choices: ("test", "supervised_train", "semisupervised_train", "semisupervised_train_ppo", "semisupervised_train_ebm")
+#data:
+ml50_path: ML50
+dict: dict_250k.txt
+load_vocab: False # whether to load already-made vocab
+train_size: 200000 # default: 0
+label_train_size: 0 # default: 0
+unlabel_train_size: 0 # default: 0
+test_size: 0 # default: 0
+val_size: 0 # default: 0
+label_keep: 0.2 # default: 0.2
+separate_monolingual_dataset: False
+mono_dataset_path: "" # choices: ("bookcorpus")
+truncation: False
+#training:
+seed: 231 # default: 231
+batch_size: 16 # default: 64
+max_epoch: 10 # default: 10
+min_epoch: 1 # default: 1
+updates: -1 # default=4000, number of train updates
+learning_rate: 0.0003 # default=3e-04
+gpu_num: 1 # default=1
+adapter: True # "adapter training instead of full model training"
+dist_strategy: deepspeed_stage_2 # default=deepspeed_stage_2, choices=("deepspeed_stage_2", "deepspeed_stage_3")
+accumulate_grad_batches: 1 # default=2 , accumulate gradients for k batches before updating
+eval_teacher_forcing: False # perform teacher forcing during validation and test
+#logging:
+from_local_finetuned: False # load locally fine tuned model
+checkpoint: "" # default="" # s3 url
+#generation:
+max_length: 50 # default=50, max length of generated sequence
+selfsup_strategy: sample # default="beam", choices=("greedy", "sample", "beam", "beam_sample"), help="decoding strategy for unlabeled data translation")
+ranking: False # rank with score during inference
+offline_generation: False
+#ssl:
+unsup_wt: 0.001 # default=0.001, help="weight given to unsupervised loss"
+weight_schedule: True # help="weight scheduling: increase linearly with time step")
+sup_wt_constant: True
+#reward:
+score: base # default="base", choices=("ensemble", "base", "uniform", "fast_align", "awesome_align", "dep_parse_awesome_align", "dep_parse_base_align", "comet_kiwi"), help="score type")
+score_list:  # choices=("base", "uniform", "fast_align", "awesome_align", "dep_parse_awesome_align", "dep_parse_base_align", "comet_kiwi")
+  - base
+  - awesome_align
+rank_score: base # default="base", choices=("base", "comet_kiwi"), not implemented yet
+filter: False # help="filter good samples in unsup batch"
+cross_attention_layer: -1 # default=-1, help="which cross attention layer to use for base score")
+baseline_strategy: epoch_mean # default="epoch_mean", choices=("epoch_mean", "batch_mean", "none"))
+#energy_model:
+train_energy: False
+energy_update_interval: 1
+energy_loss: embed_margin # type=str, defaul="nce", choices=('nce', 'margin', 'embed_margin'))
+tokenizer: "" # type=str, default="", help="different tokenizer from default used by model")
+energy_model_adapter: True
+train_energy_encoder: True
+energy_lora_rank: 8 # used to be 32
+ebm_margin: 0.5
+#offline
+grow_steps: 1
+improve_steps: 1
+warmup_steps: 100
+updates_per_improve: 1000

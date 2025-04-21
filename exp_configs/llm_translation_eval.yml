@@ -1,0 +1,27 @@
+active_config: ML50_en_mr_mbart50_config
+tokenizer: ""
+function: llm_translation_eval
+seed: 231
+max_length: 50
+load_by_effective_batch_size: False
+sup_batch_size: 16
+unsup_batch_size: 16
+eval_batch_size: 16 
+#data:
+dict: dict_250k.txt
+load_vocab: False # whether to load already-made vocab
+train_size: 50000 # default: 0
+label_train_size: 0 # default: 0
+unlabel_train_size: 0 # default: 0
+test_size: 0 # default: 0
+val_size: 0 # default: 0
+label_keep: 0.2 # default: 0.2
+separate_monolingual_dataset: False
+mono_dataset_path: "" # choices: ("bookcorpus")
+truncation: False
+no_unlabeled: False
+sup_unsup_batch_equal: False
+# LLM
+llm: gpt-4-turbo
+# pretranslate
+pretranslate_split: test
