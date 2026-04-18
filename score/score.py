@@ -5,7 +5,6 @@ import torch
 import subprocess
 import numpy as np
 from transformers import PreTrainedTokenizer, AutoTokenizer
-from fast_align.build.force_align import run as force_align_run
 import spacy
 from spacy.tokens.doc import Doc
 from spacy.tokens.token import Token
@@ -14,7 +13,6 @@ from comet import download_model, load_from_checkpoint
 from comet.models import UnifiedMetric
 import huggingface_hub
 from pathlib import Path
-from score.awesome_align_module import AwesomeAligner
 
 class Scorer:
     def __init__(self, active_config, config, tokenizer: PreTrainedTokenizer = None, src_vocab = None, trg_vocab = None, device:torch.device = None):
@@ -24,11 +22,6 @@ class Scorer:
         self.src_vocab = src_vocab
         self.trg_vocab = trg_vocab
         self.device = device
-
-        if self.config["score"] == "dep_parse_awesome_align" or self.config["score"] == "const_parse":
-            self.spacy_src = spacy.load(active_config["spacy_src"])
-            self.spacy_trg = spacy.load(active_config["spacy_trg"])
-
         # download comet kiwi model
         # log in to huggingface
         with open(f"{Path.home()}/reinforce/hf_token.txt") as f:
@@ -39,10 +32,6 @@ class Scorer:
         self.comet_kiwi_model.requires_grad_(False)
             
         self.comet_kiwi_tokenizer = AutoTokenizer.from_pretrained("microsoft/infoxlm-large")
-
-        if self.config["score"] == "awesome_align" or ((self.config["score"] == "ensemble") and ("awesome_align" in self.config["score_list"])):
-            self.awesome_align_model = AwesomeAligner(model_name_or_path="bert-base-multilingual-cased", device=self.device)
-
 
     def scale_and_baseline(self, batch_scores, scaled_score_record, raw_score_record):
         if self.config['baseline_strategy'] == "none":
@@ -81,64 +70,6 @@ class Scorer:
 
         return scaled_scores
 
-    def fast_align_alignment_score(self, src, labels, attention: torch.Tensor = None, scaled_score_record=None, raw_score_record = None):
-        # src: [batch size, (src len - 1)] -> without <sos>
-        # labels: [batch size, (trg len - 1)]
-    
-        batch_size = attention.shape[0]
-    
-        src_sents = [self.tokenizer.convert_ids_to_tokens(s, skip_special_tokens=True) + [self.tokenizer.eos_token] for s in src]
-        output_sents = [self.tokenizer.convert_ids_to_tokens(s, skip_special_tokens=True) + [self.tokenizer.eos_token] for s in labels]
-
-        fast_align_input = ""
-        for i in range(batch_size):
-            fast_align_input += " ".join(src_sents[i]) + " ||| " + " ".join(output_sents[i]) +"\n"     
-        #print(fast_align_input)
-
-        # run fast align
-        print("running fast align to calculate score")
-        #result = subprocess.run(["/bin/bash", "test.sh", 
-        #                         #"--fp", "fwd_params", "--fe", "fwd_err", 
-        #                        #"--rp", "rev_params", "--re", "rev_err"
-        #                         ],
-        #                        cwd="fast_align",
-        #                        input=fast_align_input,
-        #                        capture_output=True, text=True)
-        #print("current working directory: ", os.getcwd())
-    
-        #result = subprocess.run(["build/force_align.py", "fwd_params", "fwd_err", "rev_params", "rev_err",
-        #                          "grow-diag-final-and"],
-        #                          cwd="fast_align",
-        #                          input=fast_align_input,
-        #                          capture_output=True, text=True
-        #                         )
-
-        output = force_align_run(fast_align_input, 
-                             f"fast_align/{self.config['dir_name']}/fwd_params", 
-                             f"fast_align/{self.config['dir_name']}/fwd_err", 
-                             f"fast_align/{self.config['dir_name']}/rev_params", 
-                             f"fast_align/{self.config['dir_name']}/rev_err", 
-                             "grow-diag-final-and")
-    
-
-        # process alignments
-        #print(output)
-        raw_scores = []
-        out_lines = output.rstrip("\n").split("\n")
-        for out_line in out_lines:
-            alignment = out_line.split("|")[0]
-            prob = out_line.split("|")[1]
-            prob = float(prob)
-            score = prob # log likelihood -> higher is better
-            raw_scores.append(score)
-        
-        print("raw scores: ", raw_scores)
-        raw_score_record.extend(raw_scores)
-        scaled_scores = self.scale_and_baseline(raw_scores, scaled_score_record, raw_score_record)
-        print("scaled scores: ", scaled_scores)
-        
-        return torch.tensor(scaled_scores), torch.tensor(raw_scores)
-
     
     def uniform_score(self, src):
         return torch.ones(src.shape[0]) * 0.1, torch.ones(src.shape[0]) * 0.1
@@ -161,59 +92,6 @@ class Scorer:
         return torch.tensor(scaled_scores), torch.tensor(raw_scores)
 
     
-    def awesome_align_alignment_score(self, src, labels, attention = None, scaled_score_record=[],  raw_score_record=[]):
-        src_sents = [self.tokenizer.convert_ids_to_tokens(s, skip_special_tokens=True) + [self.tokenizer.eos_token] for s in src]
-        output_sents = [self.tokenizer.convert_ids_to_tokens(s, skip_special_tokens=True) + [self.tokenizer.eos_token] for s in labels]
-
-        # make input for awesome-align
-        awesome_align_input = []
-        for i in range(len(src_sents)):
-            try:
-                src_tokens = " ".join(src_sents[i])
-                trg_tokens = " ".join(output_sents[i])
-            except:
-                print("Error in [awesome_align_alignment_score]")
-                src_tokens = ""
-                trg_tokens = ""
-                
-            awesome_align_input.append(f"{src_tokens} ||| {trg_tokens}")
-        
-        #all_devices = find_usable_cuda_devices(2)
-        #if len(all_devices) >= 2:
-        #    device_id = all_devices[1] # out of available device, use the second one
-        #else:
-        #    device_id = all_devices[0]
-        
-        # align words
-        raw_scores = []
-        for pair in awesome_align_input:
-            word_aligns = self.awesome_align_model.align(pair, output_prob=True)
-            raw_score = np.mean([val.cpu() for val in word_aligns.values()])
-            raw_scores.append(raw_score)
-            
-        '''
-        output = subprocess.run(["awesome-align",
-            "--output_file", "awesome_align_output.txt", # f"{self.config['dir_name']}
-            "--output_prob_file", "awesome_align_probs.txt", # f"{self.config['dir_name']}
-            "--model_name_or_path", "bert-base-multilingual-cased",
-            "--data_file", "awesome_align_input.txt", #f"{self.config['dir_name']}
-            "--extraction", "softmax",
-            "--batch_size", "32"], capture_output=True)
-        print(output)
-        
-        id_alignments, token_alignments, raw_scores = self.read_alignments_from_file("awesome_align_input.txt", #f"{self.config['dir_name']}
-                                                                      "awesome_align_output.txt","awesome_align_probs.txt")
-        '''
-
-        raw_score_record.extend(raw_scores)
-        scaled_scores = self.scale_and_baseline(raw_scores, scaled_score_record, raw_score_record)
-
-        print("raw scores: ", raw_scores)
-        print("scaled scores: ", scaled_scores)
-
-        return torch.tensor(scaled_scores), torch.tensor(raw_scores)
-
-
     def read_alignments_from_file(self, input_file, alignment_file, alignment_prob_file = None):
             print("function: read alignments")
             with open(input_file, 'r') as f:
@@ -487,104 +365,6 @@ class Scorer:
 
         return torch.tensor(scaled_scores), torch.tensor(raw_scores)
     
-
-    def dependency_parse_score_awesome_align(self, src, labels, attention = None, scaled_score_record=[], raw_score_record=[]):
-        src_sents = self.tokenizer.batch_decode(src, skip_special_tokens=True, clean_up_tokenization_spaces=True)
-        output_sents = self.tokenizer.batch_decode(labels, skip_special_tokens=True, clean_up_tokenization_spaces=True)
-
-        src_tokens_list = []
-        src_docs = []
-        for src_sent in src_sents:
-            doc_src = self.spacy_src(src_sent)
-            src_docs.append(doc_src)
-            #print(doc_src.text)
-            src_tokens = []
-            for token in doc_src:
-                src_tokens.append(token.text)
-                #print(token.text, token.pos_, token.dep_)
-            src_tokens_list.append(src_tokens)
-
-                        
-        trg_docs = []
-        trg_tokens_list = []
-        for output_sent in output_sents:
-            doc_trg = self.spacy_trg(output_sent)
-            trg_docs.append(doc_trg)
-            #print(doc_trg.text)
-            trg_tokens = []
-            for token in doc_trg:
-                trg_tokens.append(token.text)
-                #print(token.text, token.pos_, token.dep_)
-            trg_tokens_list.append(trg_tokens)
-        
-        # make input file for awesome-align
-        with open("awesome_align_input.txt", "w") as f:
-            for i in range(len(src_sents)):
-                src_tokens = " ".join(src_tokens_list[i])
-                trg_tokens = " ".join(trg_tokens_list[i])
-                f.write(f"{src_tokens} ||| {trg_tokens}")
-                # avoid writing blank line at the end
-                if i != len(src_sents)-1:
-                    f.write("\n")
-
-        # align words (as heads)
-        subprocess.run(["awesome-align", # "CUDA_VISIBLE_DEVICES=0", 
-            "--output_file", "awesome_align_output.txt",
-            "--model_name_or_path", "bert-base-multilingual-cased",
-            "--data_file", "awesome_align_input.txt",
-            "--extraction", "softmax",
-            "--batch_size", "32"])
-
-
-        id_alignments, token_alignments, probs = self.read_alignments_from_file("awesome_align_input.txt", "awesome_align_output.txt")
-        #pprint.pprint(token_alignments)
-
-        # for each aligned head pair, calculate the alignment scores of their heads and sum them up
-        raw_scores = []
-        for i in range(len(src_sents)):
-            print(f"Processing sent pair {i}")
-            _scores = []
-            # tokens
-            src_tokens, trg_tokens = src_tokens_list[i], trg_tokens_list[i]
-
-            # parse trees
-            src_doc: Doc = src_docs[i]
-            #print("src_doc:", src_doc)
-            trg_doc: Doc = trg_docs[i]
-            #print("trg_doc:", trg_doc)
-            # alignment
-            id_alignment = id_alignments[i] # [(1,1), (2,4)]
-
-            # each pair
-            print("alignments:")
-            id_alignment_dict = {}
-            for id_pair in id_alignment:
-                id_alignment_dict[id_pair[0]] = id_pair[1]
-
-            for id_pair in id_alignment:
-                #print(id_pair)
-                src_id, trg_id = id_pair
-                if src_id < len(src_doc) and trg_id < len(trg_doc):
-                    src_node: Token = src_doc[src_id]
-                    trg_node: Token = trg_doc[trg_id]
-                    #print(src_node.text, trg_node.text)
-                    #_scores.append(src_node.head.similarity(trg_node.head))
-                    _scores.append(int(id_alignment_dict.get(src_node.head.i,-1) == trg_node.head.i))
-            if len(_scores) == 0:
-                score = 0
-                print("len(_scores) == 0")
-            else:
-                score = sum(_scores)/len(_scores)
-            
-            raw_scores.append(score)
-
-        raw_score_record.extend(raw_scores)
-        scaled_scores = self.scale_and_baseline(raw_scores, scaled_score_record, raw_score_record)
-        
-        print("raw scores: ", raw_scores)
-        print("scaled scores: ", scaled_scores)
-
-        return torch.tensor(scaled_scores), torch.tensor(raw_scores)
 
     def remove_incompatible_ids(self, token_ids: Tensor):
         # turn lang ids to pad

@@ -33,12 +33,7 @@ from comet import download_model, load_from_checkpoint
 from comet.models import UnifiedMetric
 
 ML50_PATH = dotenv.get_key(".env", "ML50_PATH")
-MTNT_PATH = dotenv.get_key(".env", "MTNT_PATH")
-ROBUST_WMT20_PATH = dotenv.get_key(".env", "ROBUST_WMT20_PATH")
-DOMAIN_DATA_PATH = dotenv.get_key(".env", "DOMAIN_DATA_PATH")
-NEWSCRAWL_DATA_PATH = dotenv.get_key(".env", "NEWSCRAWL_DATA_PATH")
 WMT19_TEST_DATA = dotenv.get_key(".env", "WMT19_TEST_DATA_PATH")
-FEEDBACKMT_DATA_PATH = dotenv.get_key(".env", "FEEDBACKMT_DATA_PATH")
 
 def pad_tensor(
         tensor: torch.Tensor, length: torch.Tensor, padding_index: int
@@ -176,15 +171,8 @@ class HuggingfaceDataModule(LightningDataModule):
     def load_parallel_data_splits(self, stage):
         # TODO: for test stage, just load test split
         self.parallel_dataset = DatasetDict()
-       
-        if self.active_config["dataset"] == "opus100":
-            if stage != 'fit':
-                self.parallel_dataset['validation'] = load_dataset(self.active_config["dataset"], self.lang_pair, split='validation')
-                self.parallel_dataset['test'] = load_dataset(self.active_config["dataset"], self.lang_pair, split='test')
-            else:
-                self.parallel_dataset = load_dataset(self.active_config["dataset"], self.lang_pair)
-        
-        elif self.active_config["dataset"] == "iwslt2017":
+    
+        if self.active_config["dataset"] == "iwslt2017":
             
             if stage != 'fit':
                 self.parallel_dataset['validation'] = load_dataset(self.active_config["dataset"], self.active_config["dataset"]+"-"+self.lang_pair, split='validation')
@@ -278,197 +266,6 @@ class HuggingfaceDataModule(LightningDataModule):
 
                 with open(valid_file_src) as f_src:
                     with open(valid_file_trg) as f_trg:
-                        src_lines = f_src.readlines()
-                        trg_lines = f_trg.readlines()
-                        for idx, (src_line, trg_line) in enumerate(zip(src_lines, trg_lines)):
-                            yield {"id": idx,
-                                "translation": {
-                                f"{self.active_config['src']}": src_line,
-                                f"{self.active_config['trg']}": trg_line
-                            }}
-
-            if stage == 'fit':
-                self.parallel_dataset["train"] = HFDataset.from_generator(gen_train)
-            self.parallel_dataset["validation"] = HFDataset.from_generator(gen_val)
-            self.parallel_dataset["test"] = HFDataset.from_generator(gen_test)
-
-        elif self.active_config['dataset'] == 'mtnt':
-            def gen_train():
-                train_file = f"{MTNT_PATH}/train/train.{self.active_config['src']}-{self.active_config['trg']}.tsv"
-                with open(train_file) as f:
-                    lines = f.readlines()
-                    for line in lines:
-                        comment_id, src_line, trg_line = line.split("\t")
-                        yield {"translation": {
-                                f"{self.active_config['src']}": src_line,
-                                f"{self.active_config['trg']}": trg_line
-                            }}
-                        
-            def gen_val():
-                val_file = f"{MTNT_PATH}/valid/valid.{self.active_config['src']}-{self.active_config['trg']}.tsv"
-                with open(val_file) as f:
-                    lines = f.readlines()
-                    for line in lines:
-                        comment_id, src_line, trg_line = line.split("\t")
-                        yield {"translation": {
-                                f"{self.active_config['src']}": src_line,
-                                f"{self.active_config['trg']}": trg_line
-                            }}
-            def gen_test():
-                test_file = f"{MTNT_PATH}/test/test.{self.active_config['src']}-{self.active_config['trg']}.tsv"
-                with open(test_file) as f:
-                    lines = f.readlines()
-                    for line in lines:
-                        comment_id, src_line, trg_line = line.split("\t")
-                        yield {"translation": {
-                                f"{self.active_config['src']}": src_line,
-                                f"{self.active_config['trg']}": trg_line
-                            }}
-                        
-            if stage == 'fit':
-                self.parallel_dataset["train"] = HFDataset.from_generator(gen_train)
-            self.parallel_dataset["validation"] = HFDataset.from_generator(gen_val)
-            self.parallel_dataset["test"] = HFDataset.from_generator(gen_test)
-
-        elif self.active_config["dataset"] == "robust_wmt20":
-            def gen_train():
-                if (self.active_config['src'] == "en" and self.active_config["trg"] == "ja") or (
-                self.active_config["src"] == "ja" and self.active_config["trg"] == "en"):
-                    train_file = f"{ROBUST_WMT20_PATH}/few-shot/train.{self.active_config['src']}-{self.active_config['trg']}.tsv"
-                    with open(train_file) as f:
-                        lines = f.readlines()
-                        for line in lines:
-                            comment_id, src_line, trg_line = line.split("\t")
-                            yield {"translation": {
-                                f"{self.active_config['src']}": src_line,
-                                f"{self.active_config['trg']}": trg_line
-                            }}
-                elif (self.active_config["src"] == "en" and self.active_config["trg"] == "de") or (
-                    self.active_config["src"] == "de" and self.active_config["trg"] == "en"):
-                    train_file_src = f"{ROBUST_WMT20_PATH}/few-shot/train.{self.active_config['src']}"
-                    train_file_trg = f"{ROBUST_WMT20_PATH}/few-shot/train.{self.active_config['trg']}"
-                    with open(train_file_src) as f_src:
-                        with open(train_file_trg) as f_trg:
-                            src_lines = f_src.readlines()
-                            trg_lines = f_trg.readlines()
-                            for src_line, trg_line in zip(src_lines, trg_lines):
-                                yield {"translation": {
-                                    f"{self.active_config['src']}": src_line,
-                                    f"{self.active_config['trg']}": trg_line
-                                }}
-
-                else:
-                    print("wrong lang pair for ROBUST_WMT20")
-                    exit()
-                    
-                
-            def gen_val():
-                if (self.active_config['src'] == "en" and self.active_config["trg"] == "ja") or (
-                self.active_config["src"] == "ja" and self.active_config["trg"] == "en"):
-                    val_file = f"{ROBUST_WMT20_PATH}/few-shot/valid.{self.active_config['src']}-{self.active_config['trg']}.tsv"
-                    with open(val_file) as f:
-                        lines = f.readlines()
-                        for line in lines:
-                            comment_id, src_line, trg_line = line.split("\t")
-                            yield {"translation": {
-                                f"{self.active_config['src']}": src_line,
-                                f"{self.active_config['trg']}": trg_line
-                            }}
-                elif (self.active_config["src"] == "en" and self.active_config["trg"] == "de") or (
-                    self.active_config["src"] == "de" and self.active_config["trg"] == "en"):
-                    valid_file_src = f"{ROBUST_WMT20_PATH}/few-shot/valid.{self.active_config['src']}"
-                    valid_file_trg = f"{ROBUST_WMT20_PATH}/few-shot/valid.{self.active_config['trg']}"
-                    with open(valid_file_src) as f_src:
-                        with open(valid_file_trg) as f_trg:
-                            src_lines = f_src.readlines()
-                            trg_lines = f_trg.readlines()
-                            for src_line, trg_line in zip(src_lines, trg_lines):
-                                yield {"translation": {
-                                    f"{self.active_config['src']}": src_line,
-                                    f"{self.active_config['trg']}": trg_line
-                                }}
-
-                else:
-                    print("wrong lang pair for ROBUST_WMT20")
-                    exit()
-
-            def gen_test():
-                # concat all test sets into one
-                if self.active_config["src"] == "en" and (self.active_config["trg"] == "de" or 
-                                                           self.active_config["trg"] == "ja"):
-                    test_file_set1_src = open(f"{ROBUST_WMT20_PATH}/robustness20-3-sets/robustness20-set1-{self.active_config['src']}{self.active_config['trg']}.{self.active_config['src']}")
-                    test_file_set1_trg = open(f"{ROBUST_WMT20_PATH}/robustness20-3-sets/robustness20-set1-{self.active_config['src']}{self.active_config['trg']}.{self.active_config['trg']}")
-                else:
-                    test_file_set1_src = None
-                    test_file_set1_trg = None
-
-                if self.active_config["src"] == "ja" or self.active_config["trg"] == "ja":
-                    test_file_set2_src = open(f"{ROBUST_WMT20_PATH}/robustness20-3-sets/robustness20-set2-{self.active_config['src']}{self.active_config['trg']}.{self.active_config['src']}")
-                    test_file_set2_trg = open(f"{ROBUST_WMT20_PATH}/robustness20-3-sets/robustness20-set2-{self.active_config['src']}{self.active_config['trg']}.{self.active_config['trg']}")
-                else:
-                    test_file_set2_src = None
-                    test_file_set2_trg = None
-
-                if {self.active_config['src']} == "de" and {self.active_config['trg']} == "en":
-                    test_file_set3_src = open(f"{ROBUST_WMT20_PATH}/robustness20-3-sets/robustness20-set3-{self.active_config['src']}{self.active_config['trg']}.{self.active_config['src']}")
-                    test_file_set3_trg = open(f"{ROBUST_WMT20_PATH}/robustness20-3-sets/robustness20-set3-{self.active_config['src']}{self.active_config['trg']}.{self.active_config['trg']}")
-                else:
-                    test_file_set3_src = None
-                    test_file_set3_trg = None
-                
-                for f_src, f_trg in zip([test_file_set1_src, test_file_set2_src, test_file_set3_src],
-                             [test_file_set1_trg, test_file_set2_trg, test_file_set3_trg]):
-
-                    if not f_src:
-                        continue
-                    else:
-                        src_lines = f_src.readlines()
-                        trg_lines = f_trg.readlines()
-                        for src_line, trg_line in zip(src_lines, trg_lines):
-                            yield {"translation": {
-                                f"{self.active_config['src']}": src_line,
-                                f"{self.active_config['trg']}": trg_line
-                            }}
-            
-            if stage == 'fit':
-                self.parallel_dataset["train"] = HFDataset.from_generator(gen_train)
-            self.parallel_dataset["validation"] = HFDataset.from_generator(gen_val)
-            self.parallel_dataset["test"] = HFDataset.from_generator(gen_test)
-        
-        elif self.active_config["dataset"] == "feedbackmt_highres":
-            def gen_train():
-                train_file = f"{FEEDBACKMT_DATA_PATH}/sft/wmt20-train-{self.active_config['src']}-{self.active_config['trg']}-nllb.json"
-                with open(train_file) as f:
-                    lines = f.readlines()
-                    for idx, line in enumerate(lines):
-                        translation_item = json.loads(line)
-                        src_line = translation_item["translation"]["src_sent"]
-                        trg_line = translation_item["translation"]["tgt_sent"]
-                        yield {"id": idx,
-                               "translation": {
-                                f"{self.active_config['src']}": src_line,
-                                f"{self.active_config['trg']}": trg_line
-                            }}
-            
-            def gen_val():
-                valid_file_src = f"{FEEDBACKMT_DATA_PATH}/raw/wmt21.{self.active_config['src']}-{self.active_config['trg']}.{self.active_config['src']}"
-                valid_file_trg = f"{FEEDBACKMT_DATA_PATH}/raw/wmt21.{self.active_config['src']}-{self.active_config['trg']}.{self.active_config['trg']}"
-                with open(valid_file_src) as f_src:
-                    with open(valid_file_trg) as f_trg:
-                        src_lines = f_src.readlines()
-                        trg_lines = f_trg.readlines()
-                        for idx, (src_line, trg_line) in enumerate(zip(src_lines, trg_lines)):
-                            yield {"id": idx,
-                                "translation": {
-                                f"{self.active_config['src']}": src_line,
-                                f"{self.active_config['trg']}": trg_line
-                            }}
-            
-            def gen_test():
-                test_file_src = f"{FEEDBACKMT_DATA_PATH}/raw/wmt22.{self.active_config['src']}-{self.active_config['trg']}.{self.active_config['src']}"
-                test_file_trg = f"{FEEDBACKMT_DATA_PATH}/raw/wmt22.{self.active_config['src']}-{self.active_config['trg']}.{self.active_config['trg']}"
-                with open(test_file_src) as f_src:
-                    with open(test_file_trg) as f_trg:
                         src_lines = f_src.readlines()
                         trg_lines = f_trg.readlines()
                         for idx, (src_line, trg_line) in enumerate(zip(src_lines, trg_lines)):
@@ -629,9 +426,7 @@ class HuggingfaceDataModule(LightningDataModule):
     def prepare_data(self):
         # download and cache dataset on disk
         # load parallel datasets
-        if self.active_config["dataset"] == "opus100":
-            load_dataset(self.active_config["dataset"], self.lang_pair)
-        elif self.active_config["dataset"] == "iwslt2017":
+        if self.active_config["dataset"] == "iwslt2017":
             load_dataset(self.active_config["dataset"], self.active_config["dataset"]+"-"+self.lang_pair)
         elif self.active_config["dataset"] == "wmt19":
             load_dataset(self.active_config["dataset"], self.active_config["trg"] + "-" + self.active_config["src"])
@@ -978,15 +773,15 @@ def make_data(active_config, config):
 
     print("Downloading dataset")
 
-    opus_datamodule = HuggingfaceDataModule(active_config, config)  
-    opus_datamodule.prepare_data()
+    datamodule = HuggingfaceDataModule(active_config, config)  
+    datamodule.prepare_data()
 
     if config['function'] == 'test':
-        opus_datamodule.setup("test")
+        datamodule.setup("test")
     else:
-        opus_datamodule.setup("fit")
+        datamodule.setup("fit")
     
-    return opus_datamodule
+    return datamodule
 
 
 ###### Tests ######

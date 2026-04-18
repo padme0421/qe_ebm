@@ -1,5 +1,4 @@
 import torch
-import s3fs
 import shutil
 
 import pytorch_lightning as pl
@@ -11,6 +10,7 @@ import adapters
 from adapters.training import setup_adapter_training, AdapterArguments
 
 from pl_module.bleu_callback import BLEUCallback
+import s3fs
 
 def get_root_dir(active_config, config):
     if config["score"] == "ensemble":
@@ -27,9 +27,6 @@ def get_root_dir(active_config, config):
 def clean_intermediate_files(active_config, config):
     # clean up intermediate files
     shutil.rmtree(f"{config['dir_name']}")
-    if config['score'] == 'fast_align':
-        shutil.rmtree(f"fast_align/{active_config['src']}-{active_config['trg']}")
-        shutil.rmtree(f"fast_align/{config['dir_name']}")
 
 def build_trainer(active_config, config, pl_module: LightningModule, datamodule, wandb_logger):
 

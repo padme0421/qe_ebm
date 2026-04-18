@@ -1,4 +1,4 @@
-name: align_reinforce_adapter
+name: qe_ebm
 channels:
   - pytorch
   - nvidia

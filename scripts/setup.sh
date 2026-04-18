@@ -1,8 +1,8 @@
-#conda create -n align_reinforce_adapter python=3.10 libffi=3.3
+#conda create -n qe_ebm python=3.10 libffi=3.3
 #source ~/anaconda/etc/profile.d/conda.sh
-#conda activate align_reinforce_adapter
+#conda activate qe_ebm
 
-env_name="align_reinforce_adapter"
+env_name="qe_ebm"
 
 # Check if the Conda environment exists
 if conda info --envs | grep -q "^$env_name "; then

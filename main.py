@@ -14,8 +14,7 @@ from config import configs
 from train_strategy import train_utils
 from eval_strategy import test_utils
 from pl_module import (
-    mbart_pl, mbart_trl_pl, nllb_pl, mt5_pl, bart_pl, cmlm_pl, nambart_pl,
-    mbart_comet_ebm_pl, mbart_awesome_align_ebm_pl, nambart_comet_ebm_pl, nambart_awesome_align_ebm_pl
+    mbart_pl, mbart_trl_pl, mbart_comet_ebm_pl,
 )
 import dotenv
 
@@ -81,20 +80,10 @@ def main(config, wandb_logger):
     pl_registry = {
         "supervised_train": {
             "mbart": mbart_pl.MBARTSupPL,
-            "nllb": nllb_pl.NLLBSupPL,
-            "mt5": mt5_pl.MT5SupPL,
-            "bart": bart_pl.BARTSupPL,
-            "cmlm": cmlm_pl.CMLMSupPL,
-            "nambart": nambart_pl.NAMBARTSupPL
         },
 
         "semisupervised_train": {
             "mbart": mbart_pl.MBARTSslPL,
-            "nllb": nllb_pl.NLLBSslPL,
-            "mt5": mt5_pl.MT5SslPL,
-            "bart": bart_pl.BARTSslPL,
-            "cmlm": cmlm_pl.CMLMSslPL,
-            "nambart": nambart_pl.NAMBARTSslPL
         },
 
         "semisupervised_train_ppo_trl": {
@@ -103,22 +92,10 @@ def main(config, wandb_logger):
 
         "semisupervised_train_ebm": {
             "mbart": mbart_comet_ebm_pl.MBARTSsl_COMETEBMPL,
-            "nambart": nambart_comet_ebm_pl.NAMBARTSsl_COMETEBMPL,
-            "bart": bart_pl.BARTSsl_EBMPL
-        },
-
-        "semisupervised_train_align_ebm": {
-            "mbart": mbart_awesome_align_ebm_pl.MBARTSsl_AlignEBMPL,
-            "nambart": nambart_awesome_align_ebm_pl.NAMBARTSsl_AwesomeAlignEBMPL,
         },
 
         "test": { # same as supervised training
             "mbart": mbart_pl.MBARTSupPL,
-            "nllb": nllb_pl.NLLBSupPL,
-            "mt5": mt5_pl.MT5SupPL,
-            "bart": bart_pl.BARTSupPL,
-            "cmlm": cmlm_pl.CMLMSupPL,
-            "nambart": nambart_pl.NAMBARTSupPL
         }
 
     }

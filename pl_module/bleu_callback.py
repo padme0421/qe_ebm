@@ -289,20 +289,7 @@ class BLEUCallback(pl.Callback):
                                                                                                                                 self.example_scaled_scores.get(pl_module.config['score'], []), self.example_raw_scores.get(pl_module.config['score'], []))
             elif pl_module.config['score'] == "uniform":
                 batch_scaled_scores[pl_module.config['score']], batch_raw_scores[pl_module.config['score']] = scorer.uniform_score(src)
-            
-            elif pl_module.config['score'] == "fast_align":
-                batch_scaled_scores[pl_module.config['score']], batch_raw_scores[pl_module.config['score']] =scorer.fast_align_alignment_score(src, outputs["preds"], outputs["cross_attention"], 
-                                                                                                                                                self.example_scaled_scores.get(pl_module.config['score'], []), self.example_raw_scores.get(pl_module.config['score'], []))
-            elif pl_module.config['score'] == "awesome_align":
-                batch_scaled_scores[pl_module.config['score']], batch_raw_scores[pl_module.config['score']] = scorer.awesome_align_alignment_score(src, outputs["preds"], outputs["cross_attention"], 
-                                                                                                                                                    self.example_scaled_scores.get(pl_module.config['score'], []), self.example_raw_scores.get(pl_module.config['score'], []))
-            elif pl_module.config['score'] == "dep_parse_awesome_align":
-                batch_scaled_scores[pl_module.config['score']], batch_raw_scores[pl_module.config['score']] = scorer.dependency_parse_score_awesome_align(src, outputs["preds"], outputs["cross_attention"],
-                                                                                                                                                            self.example_scaled_scores.get(pl_module.config['score'], []), self.example_raw_scores.get(pl_module.config['score'], []))
-            elif pl_module.config['score'] == "dep_parse_base_align":
-                batch_scaled_scores[pl_module.config['score']], batch_raw_scores[pl_module.config['score']] = scorer.dependency_parse_score_base_align(src, outputs["labels"], outputs["cross_attention"], 
-                                                                                                                                                        outputs["encoder_attention"], outputs["decoder_attention"], 
-                                                                                                                                                        self.example_scaled_scores.get(pl_module.config['score'], []), self.example_raw_scores.get(pl_module.config['score'], []))
+                                                                                                                                                         self.example_scaled_scores.get(pl_module.config['score'], []), self.example_raw_scores.get(pl_module.config['score'], []))
             elif pl_module.config['score'] == "comet_kiwi":
                 batch_scaled_scores[pl_module.config['score']], batch_raw_scores[pl_module.config['score']] = scorer.comet_kiwi_score(src, outputs["preds"], 
                                                                                             outputs["cross_attention"], outputs["encoder_attention"], outputs["decoder_attention"], 
@@ -312,10 +299,6 @@ class BLEUCallback(pl.Callback):
                     batch_scaled_scores['base'], batch_raw_scores['base'] = scorer.base_score(
                                                                             outputs["cross_attention"], self.example_scaled_scores.get('base', []), self.example_raw_scores.get('base', [])
                                                                             )
-                if "awesome_align" in pl_module.config["score_list"]:
-                    batch_scaled_scores['awesome_align'], batch_raw_scores['awesome_align'] = scorer.awesome_align_alignment_score(
-                                                                src, outputs["preds"], outputs["cross_attention"], self.example_scaled_scores.get('awesome_align', []), self.example_raw_scores.get('awesome_align', [])
-                                                                )
                 if "comet_kiwi" in pl_module.config["score_list"]:
                     batch_scaled_scores['comet_kiwi'], batch_raw_scores['comet_kiwi'] = scorer.comet_kiwi_score(src, outputs["preds"], 
                                                                                             outputs["cross_attention"], outputs["encoder_attention"], outputs["decoder_attention"], 
@@ -571,20 +554,7 @@ class BLEUCallback(pl.Callback):
                 batch_scaled_scores[pl_module.config['score']], batch_raw_scores[pl_module.config['score']] = scorer.base_score(outputs["cross_attention"], 
                                                                                                                                 self.example_scaled_scores.get(pl_module.config['score'], []), self.example_raw_scores.get(pl_module.config['score'], []))
             elif pl_module.config['score'] == "uniform":
-                batch_scaled_scores[pl_module.config['score']], batch_raw_scores[pl_module.config['score']] = scorer.uniform_score(src)
-            
-            elif pl_module.config['score'] == "fast_align":
-                batch_scaled_scores[pl_module.config['score']], batch_raw_scores[pl_module.config['score']] =scorer.fast_align_alignment_score(src, outputs["preds"], outputs["cross_attention"], 
-                                                                                                                                                self.example_scaled_scores.get(pl_module.config['score'], []), self.example_raw_scores.get(pl_module.config['score'], []))
-            elif pl_module.config['score'] == "awesome_align":
-                batch_scaled_scores[pl_module.config['score']], batch_raw_scores[pl_module.config['score']] = scorer.awesome_align_alignment_score(src, outputs["preds"], outputs["cross_attention"], 
-                                                                                                                                                    self.example_scaled_scores.get(pl_module.config['score'], []), self.example_raw_scores.get(pl_module.config['score'], []))
-            elif pl_module.config['score'] == "dep_parse_awesome_align":
-                batch_scaled_scores[pl_module.config['score']], batch_raw_scores[pl_module.config['score']] = scorer.dependency_parse_score_awesome_align(src, outputs["preds"], outputs["cross_attention"],
-                                                                                                                                                            self.example_scaled_scores.get(pl_module.config['score'], []), self.example_raw_scores.get(pl_module.config['score'], []))
-            elif pl_module.config['score'] == "dep_parse_base_align":
-                batch_scaled_scores[pl_module.config['score']], batch_raw_scores[pl_module.config['score']] = scorer.dependency_parse_score_base_align(src, outputs["labels"], outputs["cross_attention"], 
-                                                                                                                                                        outputs["encoder_attention"], outputs["decoder_attention"], 
+                batch_scaled_scores[pl_module.config['score']], batch_raw_scores[pl_module.config['score']] = scorer.uniform_score(src)                                                                                                                                     self.example_scaled_scores.get(pl_module.config['score'], []), self.example_raw_scores.get(pl_module.config['score'], []))                                                                                                                                         outputs["encoder_attention"], outputs["decoder_attention"], 
                                                                                                                                                         self.example_scaled_scores.get(pl_module.config['score'], []), self.example_raw_scores.get(pl_module.config['score'], []))
             elif pl_module.config['score'] == "comet_kiwi":
                 batch_scaled_scores[pl_module.config['score']], batch_raw_scores[pl_module.config['score']] = scorer.comet_kiwi_score(src, outputs["preds"], 
@@ -595,10 +565,6 @@ class BLEUCallback(pl.Callback):
                     batch_scaled_scores['base'], batch_raw_scores['base'] = scorer.base_score(
                                                                             outputs["cross_attention"], self.example_scaled_scores.get('base', []), self.example_raw_scores.get('base', [])
                                                                             )
-                if "awesome_align" in pl_module.config["score_list"]:
-                    batch_scaled_scores['awesome_align'], batch_raw_scores['awesome_align'] = scorer.awesome_align_alignment_score(
-                                                                src, outputs["preds"], outputs["cross_attention"], self.example_scaled_scores.get('awesome_align', []), self.example_raw_scores.get('awesome_align', [])
-                                                                )
                 if "comet_kiwi" in pl_module.config["score_list"]:
                     batch_scaled_scores['comet_kiwi'], batch_raw_scores['comet_kiwi'] = scorer.comet_kiwi_score(src, outputs["preds"], 
                                                                                             outputs["cross_attention"], outputs["encoder_attention"], outputs["decoder_attention"], 

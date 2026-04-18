@@ -17,11 +17,9 @@ from pytorch_lightning.utilities.deepspeed import convert_zero_checkpoint_to_fp3
 from adapters.training import setup_adapter_training, AdapterArguments
 
 from pl_module.bleu_callback import BLEUCallback
-from train_strategy.offline_trainer import OfflineTrainer
 from pl_module.mbart_pl import MBARTSupPL
 from pl_module.mbart_ebm_pl import MBARTSsl_EBMPL
 from pl_module.mbart_comet_ebm_pl import MBARTSsl_COMETEBMPL
-from pl_module.mbart_awesome_align_ebm_pl import MBARTSsl_AlignEBMPL
 
 def get_root_dir(active_config, config):
     if config["score"] == "ensemble":
@@ -127,19 +125,10 @@ def build_trainer(config, datamodule, wandb_logger):
 
     return trainer
 
-def move_checkpoint_to_s3(config, root_dir):
-    s3_dir = s3fs.S3FileSystem()
-    best_epoch_step = os.listdir(f"{config['dir_name']}/checkpoint")[0]
-    checkpoint_url = f"{root_dir}/checkpoint/{best_epoch_step}"
-    s3_dir.put(f"{config['dir_name']}/checkpoint/{best_epoch_step}", f"{root_dir}/checkpoint", recursive=True)
-    return checkpoint_url
 
 def clean_intermediate_files(active_config, config):
     # clean up intermediate files
     shutil.rmtree(f"{config['dir_name']}")
-    if config['score'] == 'fast_align':
-        shutil.rmtree(f"fast_align/{active_config['src']}-{active_config['trg']}")
-        shutil.rmtree(f"fast_align/{config['dir_name']}")
 
 def train(
         active_config,
@@ -208,34 +197,6 @@ def train(
     pl_module = pl_module_class.load_from_checkpoint(output_path, strict=False, datamodule=datamodule)
 
     trainer.test(pl_module, dataloaders=test_dataloaders)
-
-    clean_intermediate_files(active_config, config)
-
-    with open("checkpoint_url.txt", "w") as f:
-        f.write(checkpoint_url)
-    
-    return
-
-def offline_train(active_config, config, device,
-        datamodule, wandb_logger, pl_module_class):
-    
-    #config['max_epoch'] = 1
-    #config['min_epoch'] = 1
-    root_dir = get_root_dir(active_config, config)
-    
-    # currently only supports mbartssl_ebm module
-    pl_module: LightningModule = MBARTSsl_EBMPL(active_config, config, device, datamodule.tokenizer, by_steps=True, warmup=True)
-    
-    datamodule.setup_datacollator(pl_module.model)
-
-    trainer = build_trainer(config, datamodule, wandb_logger)
-
-    offline_trainer = OfflineTrainer(active_config, config, pl_module, datamodule, trainer)
-    offline_trainer.run()
-    
-    checkpoint_url = move_checkpoint_to_s3(config, root_dir)
-
-    trainer.test(dataloaders=datamodule.test_dataloader())
 
     clean_intermediate_files(active_config, config)
 

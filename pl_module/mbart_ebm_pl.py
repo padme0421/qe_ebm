@@ -36,36 +36,14 @@ from sentence_transformers.util import semantic_search
 from score.score import Scorer
 from pl_module.utils import (check_trainable_params, register_param_hooks, 
                              get_length, STL, get_adapters, count_optim_params, pad_tensor,
-                             load_pretranslations, 
                              precompute_corpus_embeddings, precompute_similarity, retrieve_unlabeled_batch_precomputed
                              )
                              
 from energy_model.base_energy_model import EnergyModel
-from llm import openai_api
 
 lang_id2str = {"en": "English", "de": "German", "zh": "Chinese", 
                 "bn": "Bengali", "ka": "Kazakh", "id": "Indonesian",
                 "mr": "Marathi", "az": "Azerbaijani", "mn": "Mongolian"}
-
-class ReparamEmbeddings(nn.Module):
-    def __init__(self, original, down_matrix, up_matrix, index_mapping: dict):
-        super(ReparamEmbeddings, self).__init__()
-        self.index_mapping = index_mapping
-        self.original_embeddings = original
-        self.down_matrix = down_matrix
-        self.up_matrix = up_matrix
-
-    def forward(self, indices: Tensor):
-        embeddings = []
-        # TODO: check if differentiable
-        for index in indices.tolist():
-            original_index = self.index_mapping[index]
-            embedding = torch.chain_matmul(self.original_embeddings(torch.tensor(original_index).to(self.original_embeddings.weight.device)).unsqueeze(0),
-                                           self.down_matrix[index],
-                                           self.up_matrix[index])
-            embeddings.append(embedding)
-        embeddings = torch.stack(embeddings)
-        return embeddings
 
 class MBARTSsl_EBMPL(pl.LightningModule):
     def __init__(self, active_config, config, device, tokenizer: PreTrainedTokenizer, datamodule: HuggingfaceDataModule, 
@@ -85,16 +63,7 @@ class MBARTSsl_EBMPL(pl.LightningModule):
 
         if config['timing_run']:
             with open(f"timing/{self.run_id}/settings.json", 'w') as f:
-                json.dump(config, f)
-
-        self.llm_translator = openai_api.OPENAI_Translation_API("gpt4", 
-                                                                src_lang=lang_id2str[self.active_config['src']],
-                                                                trg_lang=lang_id2str[self.active_config['trg']])
-        
-        if self.config['pretranslation_path'] != "":
-            self.pretranslations = load_pretranslations(self.config['pretranslation_path'])
-        else:
-            self.pretranslations = None
+                json.dump(config, f) 
 
         self.automatic_optimization = False
 
@@ -120,12 +89,6 @@ class MBARTSsl_EBMPL(pl.LightningModule):
         # prepare energy model
         self.energy_model: EnergyModel = prepare_energy_model(config, active_config)
 
-        # reparameterize energy model embeddings as nmt embeddings
-        
-        if self.config['reparameterize_embed']:
-            self.reparameterize_embeddings(self.energy_model.model.encoder.model.get_input_embeddings(), 
-                                           self.model.get_input_embeddings())
-        
         self.scorer = Scorer(self.active_config, self.config, self.tokenizer, None, None, device=torch.device("cuda"))
         
         print("nmt model trainable params: ", check_trainable_params(self.model))
@@ -168,70 +131,6 @@ class MBARTSsl_EBMPL(pl.LightningModule):
         wandb.watch(self.model, log_freq=100)
         wandb.watch(self.energy_model.base_model, log_freq=100)
     
-    def reparameterize_embeddings(self, energy_embeddings: nn.Linear, nmt_embeddings: nn.Embedding):
-        # find M such that 'energy_embeddings = M * nmt_embeddings'
-
-        nmt_vocab = self.tokenizer.get_vocab()
-        energy_vocab = self.energy_model.tokenizer.get_vocab()
-
-        energy_hid_dim = energy_embeddings.weight.size(0)
-        nmt_hid_dim = nmt_embeddings.weight.size(1)
-        print("energy embeddings size: ", energy_hid_dim, 
-              "nmt embeddings size: ", nmt_hid_dim)
-
-        # TODO: better init
-        # map: embed low rank -> energy hid dim (for each vocab entry)
-        embed_refactor_upmatrix = nn.Parameter(torch.rand(len(energy_vocab), 
-                                                    self.config['embed_lowrank'],
-                                                    energy_hid_dim, 
-                                                    device=energy_embeddings.weight.device))
-        
-        # map: nmt hid dim -> embed low rank (for each vocab entry)
-        embed_refactor_downmatrix = nn.Parameter(torch.rand(len(energy_vocab), 
-                                                    nmt_hid_dim,
-                                                    self.config['embed_lowrank'], 
-                                                    device=energy_embeddings.weight.device))
-
-        index_mapping = {energy_vocab.get(token): nmt_vocab.get(token) for token in energy_vocab}
-        reparam_embeddings = ReparamEmbeddings(nmt_embeddings, 
-                                               embed_refactor_downmatrix, embed_refactor_upmatrix,
-                                               index_mapping)
-
-        # learn up, down matrix for common vocab with MSE loss
-        # TODO: what about other vocab??
-        embed_optim = torch.optim.Adam(params=[embed_refactor_downmatrix, embed_refactor_upmatrix])
-        for token in tqdm(energy_vocab):
-            energy_vocab_index = energy_vocab.get(token)
-            nmt_vocab_index = nmt_vocab.get(token)
-            print(f"vocab entry: {token}, energy vocab index: {energy_vocab_index}, nmt vocab index: {nmt_vocab_index}")
-            
-            energy_vocab_index_t = F.one_hot(torch.tensor(energy_vocab_index), len(energy_vocab)).to(device=energy_embeddings.weight.device).float()
-            nmt_vocab_index_t = torch.tensor(nmt_vocab_index).to(device=nmt_embeddings.weight.device)
-
-            if nmt_vocab_index == -1:
-                continue
-            for i in range(self.config['embed_match_steps']):
-                embed_optim.zero_grad()
-                
-                predicted_embed = torch.linalg.multi_dot(
-                                    [nmt_embeddings(nmt_vocab_index_t).unsqueeze(0),
-                                    embed_refactor_downmatrix[energy_vocab_index],
-                                    embed_refactor_upmatrix[energy_vocab_index]]
-                                    )
-                
-                # TODO: patch solution -> find better one
-                if energy_embeddings.bias.device != energy_embeddings.weight.device:
-                    energy_embeddings.bias = nn.Parameter(energy_embeddings.bias.to(energy_embeddings.weight.device))
-
-                correct_embed = energy_embeddings.forward(energy_vocab_index_t).unsqueeze(0)
-                embed_loss = F.mse_loss(predicted_embed, correct_embed)
-                
-                print(f"step: {i}, embed_loss: {embed_loss.item()}, check for decrease")
-                embed_loss.backward()
-                embed_optim.step()
-        
-        self.energy_model.encoder.model.set_input_embeddings(reparam_embeddings)
-
 
     def eval_generate(self, batch: Dict, num_hypotheses: int) -> LongTensor:
         # to be used in eval
@@ -255,24 +154,7 @@ class MBARTSsl_EBMPL(pl.LightningModule):
         # to be used in train
         strategy = override_selfsup_strategy if override_selfsup_strategy else self.config['selfsup_strategy']
 
-        if strategy == "pretranslate":
-            text_translations = []
-            for id in batch['id'].tolist():
-                print("from pretranslations: trying to find id = ", id)
-                if id not in self.pretranslations:
-                    text_translations.extend(["ERROR"] * num_hypotheses)
-                else:   
-                    text_translations.extend([self.pretranslations[id]] * num_hypotheses) #temp
-            #print(text_translations)
-            raw_gen_output = None
-            with self.tokenizer.as_target_tokenizer():
-                raw_gen_output = self.tokenizer(text_translations, return_tensors='pt', padding=True, truncation=True)['input_ids']
-            raw_gen_output = torch.cat((torch.ones(raw_gen_output.size(0), 1).long() * self.tokenizer.eos_token_id, raw_gen_output), dim=1) # add <eos>
-            raw_gen_output = raw_gen_output.to(batch['input_ids'].device)
-            #print(raw_gen_output)
-            return raw_gen_output
-
-        elif strategy == "greedy":
+        if strategy == "greedy":
             penalty_alpha = 0
             do_sample = False
             num_beams = 1

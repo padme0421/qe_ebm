@@ -105,20 +105,7 @@ class MBARTPL(pl.LightningModule):
             batch_scaled_scores[self.config['score']], batch_raw_scores[self.config['score']] = self.scorer.base_score(cross_attention) # for ranking, no need to scale scores
 
         elif self.config['score'] == "uniform":
-            batch_scaled_scores[self.config['score']], batch_raw_scores[self.config['score']] = self.scorer.uniform_score(src)
-            
-        elif self.config['score'] == "fast_align":
-            batch_scaled_scores[self.config['score']], batch_raw_scores[self.config['score']] = self.scorer.fast_align_alignment_score(src, labels, cross_attention)
-        
-        elif self.config['score'] == "awesome_align":
-                batch_scaled_scores[self.config['score']], batch_raw_scores[self.config['score']] = self.scorer.awesome_align_alignment_score(src, labels, cross_attention)
-
-        elif self.config['score'] == "dep_parse_awesome_align":
-            batch_scaled_scores[self.config['score']], batch_raw_scores[self.config['score']] = self.scorer.dependency_parse_score_awesome_align(src, labels, cross_attention)
-                                                                                                        
-        elif self.config['score'] == "dep_parse_base_align":
-            batch_scaled_scores[self.config['score']], batch_raw_scores[self.config['score']] = self.scorer.dependency_parse_score_base_align(src, labels, cross_attention, 
-                                                                                                                                                      encoder_attention, decoder_attention)
+            batch_scaled_scores[self.config['score']], batch_raw_scores[self.config['score']] = self.scorer.uniform_score(src)                                                                                                                                      encoder_attention, decoder_attention)
                                                                                                                                                       
         elif self.config['score'] == "comet_kiwi":
             batch_scaled_scores[self.config['score']], batch_raw_scores[self.config['score']] = self.scorer.comet_kiwi_score(src, labels, 
@@ -129,10 +116,6 @@ class MBARTPL(pl.LightningModule):
                 batch_scaled_scores['base'], batch_raw_scores['base'] = self.scorer.base_score(
                                                                         cross_attention)
                                                                         
-            if 'awesome_align' in self.config['score_list']:
-                batch_scaled_scores['awesome_align'], batch_raw_scores['awesome_align'] = self.scorer.awesome_align_alignment_score(
-                                                            src, labels, cross_attention)
-                                                            
             if 'comet_kiwi' in self.config['score_list']:
                 batch_scaled_scores['comet_kiwi'], batch_raw_scores['comet_kiwi'] = self.scorer.comet_kiwi_score(src, labels, 
                                                                                          cross_attention, encoder_attention, decoder_attention)
@@ -481,19 +464,7 @@ class MBARTSslPL(MBARTPL):
                                                                                                                                scaled_score_record.get(self.config['score'], []), raw_score_record.get(self.config['score'], []))
                 elif self.config['score'] == "uniform":
                     batch_scaled_scores[self.config['score']], batch_raw_scores[self.config['score']] = self.scorer.uniform_score(src)
-                elif self.config['score'] == "fast_align":
-                    batch_scaled_scores[self.config['score']], batch_raw_scores[self.config['score']] = self.scorer.fast_align_alignment_score(src, labels, cross_attention, 
-                                                                                                                                               scaled_score_record.get(self.config['score'], []), raw_score_record.get(self.config['score'], []))
-                elif self.config['score'] == "awesome_align":
-                    batch_scaled_scores[self.config['score']], batch_raw_scores[self.config['score']] = self.scorer.awesome_align_alignment_score(src, labels, cross_attention, 
-                                                                                                                                                  scaled_score_record.get(self.config['score'], []), raw_score_record.get(self.config['score'], []))
-                elif self.config['score'] == "dep_parse_awesome_align":
-                    batch_scaled_scores[self.config['score']], batch_raw_scores[self.config['score']] = self.scorer.dependency_parse_score_awesome_align(src, labels, cross_attention,
-                                                                                                                                                         scaled_score_record.get(self.config['score'], []), raw_score_record.get(self.config['score'], []))
-                elif self.config['score'] == "dep_parse_base_align":
-                    batch_scaled_scores[self.config['score']], batch_raw_scores[self.config['score']] = self.scorer.dependency_parse_score_base_align(src, labels, cross_attention, 
-                                                                                                                                                      encoder_attention, decoder_attention, 
-                                                                                                                                                      scaled_score_record.get(self.config['score'], []), raw_score_record.get(self.config['score'], []))
+                
                 elif self.config['score'] == "comet_kiwi":
                     batch_scaled_scores[self.config['score']], batch_raw_scores[self.config['score']] = self.scorer.comet_kiwi_score(src, labels, 
                                                                                          cross_attention, encoder_attention, decoder_attention, 
@@ -503,10 +474,6 @@ class MBARTSslPL(MBARTPL):
                         batch_scaled_scores['base'], batch_raw_scores['base'] = self.scorer.base_score(
                                                                         cross_attention, scaled_score_record.get('base', []), raw_score_record.get('base', [])
                                                                         )
-                    if 'awesome_align' in self.config['score_list']:
-                        batch_scaled_scores['awesome_align'], batch_raw_scores['awesome_align'] = self.scorer.awesome_align_alignment_score(
-                                                            src, labels, cross_attention, scaled_score_record.get('awesome_align', []), raw_score_record.get('awesome_align', [])
-                                                            )
                     if 'comet_kiwi' in self.config['score_list']:
                         batch_scaled_scores['comet_kiwi'], batch_raw_scores['comet_kiwi'] = self.scorer.comet_kiwi_score(src, labels, 
                                                                                          cross_attention, encoder_attention, decoder_attention, 

@@ -61,10 +61,9 @@ sup_wt_constant: True
 loss_weight_learning_rate: 0.0001
 num_hypotheses_nmt: 5
 #reward:
-score: comet_kiwi # default="base", choices=("ensemble", "base", "uniform", "fast_align", "awesome_align", "dep_parse_awesome_align", "dep_parse_base_align", "comet_kiwi"), help="score type")
-score_list:  # choices=("base", "uniform", "fast_align", "awesome_align", "dep_parse_awesome_align", "dep_parse_base_align", "comet_kiwi")
+score: comet_kiwi # default="base", choices=("ensemble", "base", "uniform", "comet_kiwi"), help="score type")
+score_list:  # choices=("base", "uniform", "comet_kiwi")
   - base
-  - awesome_align
 rank_score: base # default="base", choices=("base", "comet_kiwi"), not implemented yet
 filter: False # help="filter good samples in unsup batch"
 cross_attention_layer: -1 # default=-1, help="which cross attention layer to use for base score")
